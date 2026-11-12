@@ -1,0 +1,1 @@
+import{o as e}from"./formato-Bn8bLo_h.js";import{c as t}from"./repositorio-BM5Bb5wu.js";function n(n,r,i){let[a,o]=e(i?.in,n,r);return+t(a)==+t(o)}export{n as t};
