@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://phtechlux.vercel.app/sitemap.xml

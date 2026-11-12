@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0d0f12">
+<title>Replay da Quadra</title>
+<style>
+  :root{--bg:#0d0f12;--card:#171a1f;--txt:#f2f2f2;--sub:#9aa0a8;--acc:#ffc93c;--rec:#ff4d4d;--ok:#3ddc84}
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
+  html,body{height:100%;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  body{display:flex;flex-direction:column;min-height:100dvh}
+  header{padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  header h1{font-size:17px;font-weight:700;letter-spacing:.2px}
+  header small{color:var(--sub);font-size:12px}
+  .stage{position:relative;margin:0 16px;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:16/9}
+  video,canvas.view{width:100%;height:100%;object-fit:cover;display:block}
+  canvas.view{position:absolute;inset:0;display:none}
+  .badge{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.6);padding:5px 10px;border-radius:999px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--rec);animation:pisca 1.2s infinite}
+  @keyframes pisca{50%{opacity:.25}}
+  .buf{position:absolute;left:10px;right:10px;bottom:10px;height:5px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
+  .buf i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+  .msg{margin:14px 16px 0;color:var(--sub);font-size:14px;line-height:1.4;min-height:40px;text-align:center}
+  .msg b{color:var(--txt)}
+  .botao{margin:18px auto 8px;width:150px;height:150px;border-radius:50%;border:6px solid #2a2e35;background:radial-gradient(circle at 35% 30%,#ffe08a,var(--acc) 55%,#d99a00);color:#1a1300;font-weight:800;font-size:18px;line-height:1.15;box-shadow:0 8px 30px rgba(255,201,60,.25);cursor:pointer;touch-action:manipulation}
+  .botao:active{transform:scale(.96)}
+  .botao:disabled{filter:grayscale(.8) brightness(.6);cursor:default}
+  .acoes{display:none;gap:10px;margin:16px;flex-wrap:wrap}
+  .acoes button,.inicio button{flex:1 1 140px;padding:14px;border-radius:12px;border:0;font-size:15px;font-weight:700;cursor:pointer}
+  .prim{background:var(--acc);color:#1a1300}
+  .sec{background:var(--card);color:var(--txt)}
+  .inicio{margin:20px 16px;display:flex;flex-direction:column;gap:12px;text-align:center}
+  .inicio p{color:var(--sub);font-size:14px;line-height:1.5}
+  .cfg{display:flex;gap:8px;justify-content:center;margin:4px 16px 0;flex-wrap:wrap}
+  .cfg label{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px}
+  .cfg select{background:var(--card);color:var(--txt);border:1px solid #2a2e35;border-radius:8px;padding:6px}
+  .lista{margin:8px 16px 24px}
+  .lista h2{font-size:13px;color:var(--sub);font-weight:600;margin:10px 0 8px;text-transform:uppercase;letter-spacing:.6px}
+  .lista button{width:100%;text-align:left;background:var(--card);color:var(--txt);border:0;border-radius:10px;padding:12px;margin-bottom:8px;font-size:14px;cursor:pointer}
+  .erro{color:var(--rec)}
+  footer{margin-top:auto;padding:12px 16px 18px;color:#5d636b;font-size:11px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Replay da Quadra</h1><small>demonstração · grava sempre, salva depois do lance</small></div>
+</header>
+
+<div class="stage" id="stage">
+  <video id="cam" playsinline muted autoplay></video>
+  <canvas class="view" id="view"></canvas>
+  <div class="badge" id="badge" hidden><span class="dot"></span><span id="badgeTxt">Gravando sem parar</span></div>
+  <div class="buf" id="bufBar" hidden><i id="buf"></i></div>
+</div>
+
+<div class="inicio" id="inicio">
+  <p>Aponta a câmera do celular pra quadra. Ela fica gravando o tempo todo, mas só guarda os últimos segundos. Saiu um lance bonito? Aperta o botão <b>depois</b> e ele aparece.</p>
+  <button class="prim" id="ligar">Ligar câmera</button>
+</div>
+
+<div class="cfg" id="cfg" hidden>
+  <label>Antes do botão
+    <select id="antes"><option value="10">10 s</option><option value="15">15 s</option><option value="25" selected>25 s</option></select>
+  </label>
+  <label>Depois
+    <select id="depois"><option value="3" selected>3 s</option><option value="5">5 s</option></select>
+  </label>
+</div>
+
+<p class="msg" id="msg"></p>
+<button class="botao" id="botao" hidden disabled>SALVAR<br>LANCE</button>
+
+<div class="acoes" id="acoes">
+  <button class="prim" id="denovo">Ver de novo</button>
+  <button class="sec" id="baixar">Baixar vídeo</button>
+  <button class="sec" id="voltar">Voltar pra câmera</button>
+</div>
+
+<div class="lista" id="lista" hidden><h2>Lances salvos</h2><div id="itens"></div></div>
+
+<footer>Feito por PH · phtechlux.vercel.app</footer>
+
+<script>
+(() => {
+  const FPS = 15, LARG = 640;
+  const $ = id => document.getElementById(id);
+  const cam = $('cam'), view = $('view'), vctx = view.getContext('2d');
+  const grab = document.createElement('canvas'), gctx = grab.getContext('2d');
+  let stream = null, frames = [], timer = null, salvando = false, tocando = null;
+  const lances = []; let atual = null;
+
+  const antes = () => +$('antes').value, depois = () => +$('depois').value;
+  const msg = h => { $('msg').innerHTML = h; };
+
+  $('ligar').onclick = async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+      });
+    } catch (e) {
+      msg('<span class="erro">Não consegui abrir a câmera. Libera a permissão no navegador e tenta de novo.</span>');
+      return;
+    }
+    cam.srcObject = stream;
+    await cam.play().catch(() => {});
+    await new Promise(r => cam.videoWidth ? r() : cam.onloadedmetadata = r);
+    grab.width = view.width = LARG;
+    grab.height = view.height = Math.round(LARG * cam.videoHeight / cam.videoWidth);
+    $('stage').style.aspectRatio = cam.videoWidth + '/' + cam.videoHeight;
+    $('inicio').hidden = true; $('inicio').style.display = 'none';
+    $('badge').hidden = false; $('bufBar').hidden = false; $('cfg').hidden = false; $('botao').hidden = false;
+    timer = setInterval(capturar, 1000 / FPS);
+    msg('Gravando. O botão libera quando juntar alguns segundos.');
+  };
+
+  function capturar() {
+    if (!cam.videoWidth) return;
+    gctx.drawImage(cam, 0, 0, grab.width, grab.height);
+    const t = performance.now();
+    grab.toBlob(b => { if (b) frames.push({ t, b }); }, 'image/jpeg', 0.72);
+    // guarda só o necessário: o anel. O resto é apagado, nunca enche a memória.
+    const limite = t - (antes() + depois() + 3) * 1000;
+    while (frames.length && frames[0].t < limite && !salvando) frames.shift();
+    const seg = frames.length ? (t - frames[0].t) / 1000 : 0;
+    $('buf').style.width = Math.min(100, seg / antes() * 100) + '%';
+    if (!salvando) {
+      $('botao').disabled = seg < 3;
+      if (seg >= 3 && !atual) msg(`Guardando sempre os últimos <b>${Math.min(antes(), Math.floor(seg))} s</b>. Faz alguma coisa na frente da câmera e só depois aperta o botão.`);
+    }
+  }
+
+  $('botao').onclick = () => {
+    if (salvando) return;
+    salvando = true; const apertou = performance.now();
+    $('botao').disabled = true;
+    let falta = depois();
+    $('badgeTxt').textContent = 'Salvando lance...';
+    msg(`Pegou! Salvando os <b>${antes()} s antes</b> e mais <b>${falta} s</b> depois...`);
+    const iv = setInterval(() => {
+      falta--;
+      if (falta > 0) { msg(`Pegou! Salvando os <b>${antes()} s antes</b> e mais <b>${falta} s</b> depois...`); return; }
+      clearInterval(iv);
+      setTimeout(() => {
+        const ini = apertou - antes() * 1000, fim = apertou + depois() * 1000;
+        const clip = frames.filter(f => f.t >= ini && f.t <= fim);
+        salvando = false;
+        $('badgeTxt').textContent = 'Gravando sem parar';
+        if (clip.length < 5) { msg('<span class="erro">Não deu tempo de juntar imagem. Tenta de novo.</span>'); return; }
+        const quando = new Date();
+        const lance = { frames: clip, nome: 'Lance das ' + quando.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), dur: (clip[clip.length - 1].t - clip[0].t) / 1000, apertouEm: (apertou - clip[0].t) / 1000 };
+        lances.unshift(lance);
+        renderLista();
+        abrir(lance);
+      }, 250);
+    }, 1000);
+  };
+
+  function renderLista() {
+    $('lista').hidden = false;
+    $('itens').innerHTML = '';
+    lances.forEach(l => {
+      const b = document.createElement('button');
+      b.textContent = `${l.nome} · ${Math.round(l.dur)} s`;
+      b.onclick = () => abrir(l);
+      $('itens').appendChild(b);
+    });
+  }
+
+  function marca(ctx, w, h, seg, apertouEm) {
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(10, h - 34, 150, 24);
+    ctx.fillStyle = '#ffc93c'; ctx.font = 'bold 14px system-ui,sans-serif';
+    ctx.fillText('REPLAY · P10', 18, h - 17);
+    if (seg >= apertouEm - 0.1 && seg <= apertouEm + 0.6) {
+      ctx.fillStyle = 'rgba(255,201,60,.9)'; ctx.fillRect(w - 128, 10, 118, 24);
+      ctx.fillStyle = '#1a1300'; ctx.fillText('BOTÃO AQUI', w - 118, 27);
+    }
+  }
+
+  // toca o lance no canvas, decodificando quadro a quadro (pouca memória)
+  function tocar(lance, aoQuadro) {
+    if (tocando) tocando.parar = true;
+    const ctl = { parar: false }; tocando = ctl;
+    const fs = lance.frames, t0 = fs[0].t;
+    return new Promise(async res => {
+      const inicio = performance.now();
+      for (let i = 0; i < fs.length; i++) {
+        if (ctl.parar) return res(false);
+        const espera = (fs[i].t - t0) - (performance.now() - inicio);
+        if (espera > 0) await new Promise(r => setTimeout(r, espera));
+        const bmp = await createImageBitmap(fs[i].b);
+        vctx.drawImage(bmp, 0, 0, view.width, view.height); bmp.close();
+        marca(vctx, view.width, view.height, (fs[i].t - t0) / 1000, lance.apertouEm);
+        aoQuadro && aoQuadro(i / fs.length);
+      }
+      res(true);
+    });
+  }
+
+  function abrir(lance) {
+    atual = lance;
+    view.style.display = 'block'; cam.style.visibility = 'hidden';
+    $('botao').hidden = true; $('cfg').hidden = true; $('acoes').style.display = 'flex';
+    $('badge').hidden = true; $('bufBar').hidden = true;
+    msg(`Esse é o lance: começa <b>${Math.round(lance.apertouEm)} s antes</b> de alguém apertar o botão. Aperta só uma vez, não precisa parar de gravar.`);
+    tocar(lance);
+  }
+
+  $('denovo').onclick = () => atual && tocar(atual);
+  $('voltar').onclick = () => {
+    if (tocando) tocando.parar = true;
+    atual = null;
+    view.style.display = 'none'; cam.style.visibility = 'visible';
+    $('botao').hidden = false; $('cfg').hidden = false; $('acoes').style.display = 'none';
+    $('badge').hidden = false; $('bufBar').hidden = false;
+    msg('Gravando de novo. Aperta o botão depois do próximo lance.');
+  };
+
+  $('baixar').onclick = async () => {
+    if (!atual || !window.MediaRecorder || !view.captureStream) { msg('<span class="erro">Esse navegador não deixa salvar o vídeo.</span>'); return; }
+    const tipo = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
+    if (!tipo) { msg('<span class="erro">Esse navegador não deixa salvar o vídeo.</span>'); return; }
+    const ext = tipo.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const rec = new MediaRecorder(view.captureStream(FPS), { mimeType: tipo, videoBitsPerSecond: 2_500_000 });
+    const partes = []; rec.ondataavailable = e => e.data.size && partes.push(e.data);
+    const fim = new Promise(r => rec.onstop = r);
+    $('baixar').disabled = true;
+    rec.start(500);
+    const ok = await tocar(atual, p => msg(`Preparando o vídeo... ${Math.round(p * 100)}%`));
+    rec.stop(); await fim; $('baixar').disabled = false;
+    if (!ok) { msg('Cancelado.'); return; }
+    const blob = new Blob(partes, { type: tipo.split(';')[0] });
+    const nome = atual.nome.replace(/\D+/g, '-').replace(/^-|-$/g, '');
+    const arq = new File([blob], `lance-${nome}.${ext}`, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [arq] })) {
+      try { await navigator.share({ files: [arq], title: 'Meu lance' }); msg('Pronto, é só mandar pra galera ou postar.'); return; } catch (e) {}
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = arq.name; a.click();
+    msg('Vídeo baixado.');
+  };
+})();
+</script>
+</body>
+</html>
